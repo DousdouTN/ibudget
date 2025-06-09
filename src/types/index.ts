@@ -16,6 +16,7 @@ export interface Category {
   name: string;
   color: string;
   icon: string;
+  type: 'expense' | 'income';
 }
 
 export interface ChartData {

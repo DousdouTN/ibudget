@@ -19,6 +19,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({ onClose }) => {
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [targetCategoryId, setTargetCategoryId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [validationError, setValidationError] = useState('');
 
   const [editForm, setEditForm] = useState({
     name: '',
@@ -35,6 +36,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({ onClose }) => {
       color: category.color,
       icon: category.icon
     });
+    setValidationError('');
   };
 
   const handleDeleteCategory = (category: Category) => {
@@ -59,7 +61,21 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({ onClose }) => {
     e.preventDefault();
     if (!editingCategory || !user || isSubmitting) return;
 
+    // Client-side validation: check for duplicate names
+    const categoriesOfSameType = editingCategory.type === 'expense' ? expenseCategories : incomeCategories;
+    const duplicateExists = categoriesOfSameType.some(
+      category => category.id !== editingCategory.id && 
+      category.name.toLowerCase() === editForm.name.toLowerCase()
+    );
+
+    if (duplicateExists) {
+      setValidationError(intl.formatMessage({ id: 'categories.duplicateNameError' }));
+      return;
+    }
+
     setIsSubmitting(true);
+    setValidationError('');
+    
     try {
       const { error } = await supabase
         .from('categories')
@@ -77,7 +93,11 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({ onClose }) => {
       setEditingCategory(null);
     } catch (error) {
       console.error('Error updating category:', error);
-      alert('Failed to update category. Please try again.');
+      if (error.code === '23505') {
+        setValidationError(intl.formatMessage({ id: 'categories.duplicateNameError' }));
+      } else {
+        alert('Failed to update category. Please try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -304,6 +324,11 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({ onClose }) => {
               Edit Category: {editingCategory.name}
             </h3>
             <form onSubmit={handleSaveEdit} className="space-y-4">
+              {validationError && (
+                <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                  <p className="text-sm text-red-700">{validationError}</p>
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -312,7 +337,10 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({ onClose }) => {
                   <input
                     type="text"
                     value={editForm.name}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                    onChange={(e) => {
+                      setEditForm(prev => ({ ...prev, name: e.target.value }));
+                      setValidationError('');
+                    }}
                     className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                     disabled={isSubmitting}
@@ -334,7 +362,10 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({ onClose }) => {
               <div className="flex justify-end space-x-3">
                 <button
                   type="button"
-                  onClick={() => setEditingCategory(null)}
+                  onClick={() => {
+                    setEditingCategory(null);
+                    setValidationError('');
+                  }}
                   className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
                   disabled={isSubmitting}
                 >
