@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Transaction, Category } from '../types';
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../data/sampleData';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { useLanguage } from './LanguageContext';
@@ -12,10 +11,11 @@ interface TransactionsContextType {
   updateTransaction: (id: string, transaction: Partial<Transaction>) => Promise<void>;
   expenseCategories: Category[];
   incomeCategories: Category[];
-  addCategory: (category: Omit<Category, 'id'>, type: 'expense' | 'income') => void;
+  addCategory: (category: Omit<Category, 'id'>, type: 'expense' | 'income') => Promise<void>;
   calculateTotal: (type?: 'expense' | 'income') => number;
   calculateTotalByCategory: () => Record<string, number>;
   filterTransactions: (filters: Partial<Transaction>) => Transaction[];
+  refreshCategories: () => Promise<void>;
 }
 
 const TransactionsContext = createContext<TransactionsContextType | undefined>(undefined);
@@ -35,62 +35,11 @@ export const TransactionsProvider: React.FC<{ children: ReactNode }> = ({ childr
   const { user } = useAuth();
   const { locale } = useLanguage();
 
-  // Update categories when language changes
-  useEffect(() => {
-    const { expense, income } = locale === 'fr' 
-      ? {
-          expense: EXPENSE_CATEGORIES.map(cat => ({
-            ...cat,
-            name: cat.name // French names are now default in sampleData
-          })),
-          income: INCOME_CATEGORIES.map(cat => ({
-            ...cat,
-            name: cat.name // French names are now default in sampleData
-          }))
-        }
-      : {
-          expense: EXPENSE_CATEGORIES.map(cat => ({
-            ...cat,
-            name: getEnglishName(cat.id, 'expense')
-          })),
-          income: INCOME_CATEGORIES.map(cat => ({
-            ...cat,
-            name: getEnglishName(cat.id, 'income')
-          }))
-        };
-
-    setExpenseCategories(expense);
-    setIncomeCategories(income);
-  }, [locale]);
-
-  const getEnglishName = (id: string, type: 'expense' | 'income') => {
-    const englishNames: Record<string, string> = {
-      // Expense categories
-      daily: 'Daily Expenses',
-      transport: 'Transportation',
-      leisure: 'Leisure & Entertainment',
-      groceries: 'Groceries',
-      home: 'Home & Utilities',
-      health: 'Health & Wellness',
-      travel: 'Travel & Vacation',
-      education: 'Education',
-      other: 'Other Expenses',
-      // Income categories
-      salary: 'Salary & Wages',
-      freelance: 'Freelance',
-      investments: 'Investments',
-      gifts: 'Gifts',
-      refunds: 'Refunds',
-      other_income: 'Other Income'
-    };
-
-    return englishNames[id] || id;
-  };
-
   useEffect(() => {
     if (user) {
       ensureUserProfile();
       fetchTransactions();
+      fetchCategories();
     }
   }, [user]);
 
@@ -115,6 +64,72 @@ export const TransactionsProvider: React.FC<{ children: ReactNode }> = ({ childr
     } catch (error) {
       console.error('Error ensuring user profile:', error);
     }
+  };
+
+  const fetchCategories = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('name');
+
+      if (error) throw error;
+
+      const expenses = data?.filter(cat => cat.type === 'expense') || [];
+      const incomes = data?.filter(cat => cat.type === 'income') || [];
+
+      // Apply language-specific names if needed
+      const processedExpenses = expenses.map(cat => ({
+        ...cat,
+        name: getLocalizedCategoryName(cat.name, 'expense')
+      }));
+
+      const processedIncomes = incomes.map(cat => ({
+        ...cat,
+        name: getLocalizedCategoryName(cat.name, 'income')
+      }));
+
+      setExpenseCategories(processedExpenses);
+      setIncomeCategories(processedIncomes);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
+  const getLocalizedCategoryName = (originalName: string, type: 'expense' | 'income') => {
+    if (locale === 'en') {
+      const englishNames: Record<string, string> = {
+        // Expense categories
+        'Dépenses Quotidiennes': 'Daily Expenses',
+        'Transport': 'Transportation',
+        'Loisirs & Divertissement': 'Leisure & Entertainment',
+        'Courses': 'Groceries',
+        'Maison & Services': 'Home & Utilities',
+        'Santé & Bien-être': 'Health & Wellness',
+        'Voyages & Vacances': 'Travel & Vacation',
+        'Éducation': 'Education',
+        'Épargne': 'Savings',
+        'Autres Dépenses': 'Other Expenses',
+        // Income categories
+        'Salaire': 'Salary & Wages',
+        'Freelance': 'Freelance',
+        'Investissements': 'Investments',
+        'Cadeaux': 'Gifts',
+        'Remboursements': 'Refunds',
+        'Autres Revenus': 'Other Income'
+      };
+
+      return englishNames[originalName] || originalName;
+    }
+
+    return originalName; // Return original French name
+  };
+
+  const refreshCategories = async () => {
+    await fetchCategories();
   };
 
   const fetchTransactions = async () => {
@@ -186,16 +201,25 @@ export const TransactionsProvider: React.FC<{ children: ReactNode }> = ({ childr
     }
   };
 
-  const addCategory = (category: Omit<Category, 'id'>, type: 'expense' | 'income') => {
-    const newCategory: Category = {
-      ...category,
-      id: category.name.toLowerCase().replace(/\s+/g, '_'),
-    };
+  const addCategory = async (category: Omit<Category, 'id'>, type: 'expense' | 'income') => {
+    if (!user) return;
 
-    if (type === 'expense') {
-      setExpenseCategories(prev => [...prev, newCategory]);
-    } else {
-      setIncomeCategories(prev => [...prev, newCategory]);
+    try {
+      const { error } = await supabase
+        .from('categories')
+        .insert([{
+          ...category,
+          type,
+          user_id: user.id
+        }]);
+
+      if (error) throw error;
+      
+      // Refresh categories after adding
+      await fetchCategories();
+    } catch (error) {
+      console.error('Error adding category:', error);
+      throw error;
     }
   };
 
@@ -252,6 +276,7 @@ export const TransactionsProvider: React.FC<{ children: ReactNode }> = ({ childr
         calculateTotal,
         calculateTotalByCategory,
         filterTransactions,
+        refreshCategories,
       }}
     >
       {children}

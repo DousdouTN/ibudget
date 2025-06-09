@@ -14,14 +14,28 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ onClose, type }) => {
   
   const [formData, setFormData] = useState({
     name: '',
-    color: '#000000',
+    color: '#3B82F6',
     icon: 'tag'
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    addCategory(formData, type);
-    onClose();
+    
+    if (isSubmitting) return;
+    
+    setIsSubmitting(true);
+    
+    try {
+      await addCategory(formData, type);
+      onClose();
+    } catch (error) {
+      console.error('Error adding category:', error);
+      alert('Failed to add category. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -44,6 +58,7 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ onClose, type }) => {
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 transition-colors"
+            disabled={isSubmitting}
           >
             <X className="w-5 h-5" />
           </button>
@@ -61,6 +76,8 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ onClose, type }) => {
               onChange={handleChange}
               className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
+              disabled={isSubmitting}
+              placeholder="Enter category name..."
             />
           </div>
 
@@ -74,6 +91,7 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ onClose, type }) => {
               value={formData.color}
               onChange={handleChange}
               className="w-full h-10 p-1 border border-gray-300 rounded-md cursor-pointer"
+              disabled={isSubmitting}
             />
           </div>
 
@@ -82,14 +100,18 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ onClose, type }) => {
               type="button"
               onClick={onClose}
               className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+              disabled={isSubmitting}
             >
               {intl.formatMessage({ id: 'common.cancel' })}
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isSubmitting}
             >
-              {intl.formatMessage({ id: 'common.save' })}
+              {isSubmitting 
+                ? 'Adding...' 
+                : intl.formatMessage({ id: 'common.save' })}
             </button>
           </div>
         </form>

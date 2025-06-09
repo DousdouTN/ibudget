@@ -13,7 +13,7 @@ interface TransactionFormProps {
 }
 
 const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, editTransaction }) => {
-  const { addTransaction, updateTransaction, expenseCategories, incomeCategories } = useTransactions();
+  const { addTransaction, updateTransaction, expenseCategories, incomeCategories, refreshCategories } = useTransactions();
   const intl = useIntl();
   const { user } = useAuth();
   const [showCategoryForm, setShowCategoryForm] = useState(false);
@@ -37,6 +37,12 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, editTransact
       fetchGoals();
     }
   }, [user]);
+
+  // Refresh categories when category form is closed
+  const handleCategoryFormClose = async () => {
+    setShowCategoryForm(false);
+    await refreshCategories();
+  };
 
   const fetchGoals = async () => {
     try {
@@ -379,7 +385,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, editTransact
 
       {showCategoryForm && (
         <CategoryForm
-          onClose={() => setShowCategoryForm(false)}
+          onClose={handleCategoryFormClose}
           type={formData.type}
         />
       )}
