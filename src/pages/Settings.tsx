@@ -5,8 +5,9 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useIntl } from 'react-intl';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { User, Bell, Download, Upload, Trash2, Calendar, AlertTriangle } from 'lucide-react';
+import { User, Bell, Download, Upload, Trash2, Calendar, AlertTriangle, Settings as SettingsIcon } from 'lucide-react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
+import CategoryManager from '../components/CategoryManager';
 
 const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState('profile');
@@ -18,6 +19,7 @@ const Settings: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteType, setDeleteType] = useState<'month' | 'all' | null>(null);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
   
   const [formData, setFormData] = useState({
     full_name: profile?.full_name || '',
@@ -215,6 +217,18 @@ const Settings: React.FC = () => {
           </button>
           
           <button
+            onClick={() => setActiveTab('categories')}
+            className={`px-4 py-3 font-medium text-sm flex items-center ${
+              activeTab === 'categories'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <SettingsIcon className="w-4 h-4 mr-2" />
+            Categories
+          </button>
+          
+          <button
             onClick={() => setActiveTab('notifications')}
             className={`px-4 py-3 font-medium text-sm flex items-center ${
               activeTab === 'notifications'
@@ -332,6 +346,33 @@ const Settings: React.FC = () => {
                 </div>
               </div>
             </form>
+          )}
+
+          {activeTab === 'categories' && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Category Management</h3>
+                  <p className="text-sm text-gray-500">Manage your income and expense categories</p>
+                </div>
+                <button
+                  onClick={() => setShowCategoryManager(true)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  Manage Categories
+                </button>
+              </div>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                <h4 className="font-medium text-blue-800 mb-2">Category Management Features:</h4>
+                <ul className="text-sm text-blue-700 space-y-1">
+                  <li>• Edit category names and colors</li>
+                  <li>• Delete categories (with transaction reassignment)</li>
+                  <li>• View transaction counts per category</li>
+                  <li>• Organize both income and expense categories</li>
+                </ul>
+              </div>
+            </div>
           )}
           
           {activeTab === 'notifications' && (
@@ -501,6 +542,9 @@ const Settings: React.FC = () => {
       </div>
 
       {showDeleteConfirm && <DeleteConfirmationDialog />}
+      {showCategoryManager && (
+        <CategoryManager onClose={() => setShowCategoryManager(false)} />
+      )}
     </div>
   );
 };
